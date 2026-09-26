@@ -1,0 +1,25 @@
+{
+  "name": "example",
+  "label": "Example Agent",
+  "home_env": "EXAMPLE_AGENT_HOME",
+  "home_default": "~/.example-agent",
+  "session_globs": ["threads/*.jsonl"],
+  "id_fields": ["thread_id"],
+  "title_rules": [{"match": {"kind": "meta"}, "field": "subject"}],
+  "message_rules": [
+    {"match": {"kind": "turn"}, "role": "speaker", "content": "body"}
+  ],
+  "skip_when": ["hidden"],
+  "blocks": {
+    "say": {"kind": "text", "key": "text"},
+    "call": {"kind": "label", "label": "tool", "key": "tool"},
+    "result": {"kind": "nested", "label": "result", "key": "parts"},
+    "picture": {"kind": "marker", "label": "image"}
+  },
+  "meta_fields": [["Workspace", "workspace"]],
+  "timestamp_fields": ["at"],
+  "body_field": "body",
+  "extras": ["config.yaml"],
+  "extras_dir": "example",
+  "attachment_dirs": ["files"]
+}

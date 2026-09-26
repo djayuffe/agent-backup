@@ -1,0 +1,26 @@
+# Mirror and backup output
+*-chats/
+*-chats.zip
+*-backup-*/
+.manifest.json
+
+# Release artifacts
+*.sha256
+agent-backup-rc*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# macOS
+.DS_Store
