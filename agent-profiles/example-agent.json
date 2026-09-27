@@ -5,6 +5,7 @@
   "home_default": "~/.example-agent",
   "session_globs": ["threads/*.jsonl"],
   "id_fields": ["thread_id"],
+  "type_field": "kind",
   "title_rules": [{"match": {"kind": "meta"}, "field": "subject"}],
   "message_rules": [
     {"match": {"kind": "turn"}, "role": "speaker", "content": "body"}

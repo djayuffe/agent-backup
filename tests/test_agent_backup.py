@@ -9,6 +9,7 @@
 
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import zipfile
@@ -40,6 +41,7 @@ EXAMPLE = {
     "home_default": "~/.example-agent",
     "session_globs": ["threads/*.jsonl"],
     "id_fields": ["thread_id"],
+    "type_field": "kind",
     "title_rules": [{"match": {"kind": "meta"}, "field": "subject"}],
     "message_rules": [{"match": {"kind": "turn"}, "role": "speaker", "content": "body"}],
     "skip_when": ["hidden"],
@@ -273,6 +275,103 @@ def test_backup_refuses_output_inside_source(tmp_path: Path):
                           "--source", str(home), "--output", str(home / "inside")],
                          capture_output=True, text=True, cwd=ROOT)
     assert bad.returncode == 2 and "must not be" in bad.stderr
+
+
+def test_backup_records_sqlite_schemas_and_reports_broken_ones(tmp_path: Path):
+    profile = Profile.from_dict(EXAMPLE)
+    home, project = tmp_path / "home", tmp_path / "proj"
+    write_thread(home, "t1", [{"kind": "turn", "speaker": "human", "body": [{"type": "say", "text": "hi"}]}])
+    project.mkdir()
+    connection = sqlite3.connect(home / "state.sqlite")
+    connection.execute("CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL)")
+    connection.commit()
+    connection.close()
+    (home / "broken.db").write_bytes(b"this is not a database")
+
+    metadata = agent_backup.backup(profile, project, home, tmp_path / "out")
+    schemas = json.loads((Path(metadata["path"]) / "extracted" / "sqlite-schema.json").read_text(encoding="utf-8"))
+    columns = schemas["state.sqlite"]["tables"]["notes"]["columns"]
+    assert [c["name"] for c in columns] == ["id", "body"]
+    assert "CREATE TABLE notes" in schemas["state.sqlite"]["tables"]["notes"]["sql"]
+    assert "error" in schemas["broken.db"]  # recorded, not fatal
+
+
+@pytest.mark.skipif(os.name != "posix", reason="symlinks, FIFOs and chmod 000 are POSIX behaviour")
+def test_backup_preserves_symlinks_and_reports_what_it_cannot_copy(tmp_path: Path):
+    profile = Profile.from_dict(EXAMPLE)
+    home, project = tmp_path / "home", tmp_path / "proj"
+    write_thread(home, "t1", [{"kind": "turn", "speaker": "human", "body": [{"type": "say", "text": "hi"}]}])
+    project.mkdir()
+    (project / "real.txt").write_text("data", encoding="utf-8")
+    (project / "link.txt").symlink_to("real.txt")
+    (project / "dangling.txt").symlink_to("nowhere")
+    os.mkfifo(project / "pipe")
+    locked = project / "locked"
+    locked.mkdir()
+    (locked / "secret").write_text("x", encoding="utf-8")
+    locked.chmod(0o000)
+    readonly = project / "readonly"
+    readonly.mkdir()
+    (readonly / "kept.txt").write_text("keep me", encoding="utf-8")
+    readonly.chmod(0o500)
+    try:
+        metadata = agent_backup.backup(profile, project, home, tmp_path / "out")
+    finally:
+        locked.chmod(0o700)
+        readonly.chmod(0o700)
+        for copied in (tmp_path / "out").rglob("*"):
+            if copied.is_dir() and not copied.is_symlink():
+                copied.chmod(0o700)
+
+    copied = Path(metadata["path"]) / "project"
+    assert (copied / "real.txt").read_text(encoding="utf-8") == "data"
+    assert (copied / "link.txt").is_symlink() and os.readlink(copied / "link.txt") == "real.txt"
+    assert (copied / "dangling.txt").is_symlink()  # preserved, not followed
+    assert metadata["sha256"]["project/real.txt"]
+    assert "project/link.txt" not in metadata["sha256"]  # a symlink has no content of its own
+    skipped = "\n".join(metadata["skipped"])
+    assert "pipe: not a regular file" in skipped
+    assert "locked" in skipped and "Permission denied" in skipped
+    # A read-only directory keeps its contents: its mode is applied afterwards.
+    assert (copied / "readonly" / "kept.txt").read_text(encoding="utf-8") == "keep me"
+    assert metadata["sha256"]["project/readonly/kept.txt"]
+    assert metadata["chat_count"] == 1  # the backup still finished
+
+
+@pytest.mark.skipif(os.name != "posix", reason="chmod 000 does not block reads on Windows")
+def test_walk_reports_directories_it_cannot_read(tmp_path: Path):
+    (tmp_path / "open").mkdir()
+    (tmp_path / "open" / "file").write_text("x", encoding="utf-8")
+    shut = tmp_path / "shut"
+    shut.mkdir()
+    shut.chmod(0o000)
+    skipped: list[str] = []
+    try:
+        seen = {p.name for p in agent_backup.walk(tmp_path, skipped)}
+    finally:
+        shut.chmod(0o700)
+    assert {"open", "file", "shut"} <= seen
+    assert any("shut" in entry and "Permission denied" in entry for entry in skipped)
+
+
+def test_backup_event_profile_counts_records_without_copying_content(tmp_path: Path):
+    profile = Profile.from_dict({**EXAMPLE, "body_field": "body"})
+    home, project = tmp_path / "home", tmp_path / "proj"
+    project.mkdir()
+    write_thread(home, "t1", [
+        {"kind": "meta", "subject": "Quiet", "thread_id": "T-1"},
+        {"kind": "turn", "speaker": "human", "body": {"type": "say", "text": "a secret"}},
+        {"kind": "turn", "speaker": "robot", "body": {"type": "say", "text": "another"}},
+    ])
+    (home / "threads" / "damaged.jsonl").write_text("{not json\n", encoding="utf-8")
+
+    metadata = agent_backup.backup(profile, project, home, tmp_path / "out")
+    extracted = Path(metadata["path"]) / "extracted"
+    report = json.loads((extracted / profile.event_profile_name).read_text(encoding="utf-8"))
+    assert report["files"] == 2 and report["invalid_json"] == 1
+    assert report["record_types"] == {"meta": 1, "turn": 2}
+    assert report["body_keys"]["turn"] == {"type": 2, "text": 2}
+    assert "secret" not in json.dumps(report)  # shapes only, never contents
 
 
 def test_builtin_profiles_cover_their_own_documented_blocks():

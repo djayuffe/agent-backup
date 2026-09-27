@@ -71,6 +71,9 @@ class Profile:
     message_rules: tuple[dict[str, Any], ...] = ()
     #: Dotted paths whose truthiness excludes a record (sub-agent traffic, ...).
     skip_when: tuple[str, ...] = ()
+    #: Record key naming the record's kind, used by `audit` and the backup's
+    #: record-shape profile. Not every agent calls it "type".
+    type_field: str = "type"
     #: Content-block renderers, keyed by block type.
     blocks: dict[str, dict[str, Any]] = field(default_factory=dict)
     #: Render "[type]" for block types the profile does not know, instead of
@@ -492,13 +495,17 @@ def walk(source: Path, skipped: list[str] | None = None) -> Iterator[Path]:
 def copy_tree(source: Path, destination: Path, manifest: dict[str, str], skipped: list[str], prefix: str) -> None:
     if not source.exists():
         return
+    directories: list[tuple[Path, Path]] = []
     for item in walk(source, skipped):
         relative = item.relative_to(source)
         target = destination / relative
         try:
             if item.is_dir() and not item.is_symlink():
                 target.mkdir(parents=True, exist_ok=True)
-                shutil.copystat(item, target, follow_symlinks=False)
+                # Metadata is applied once the contents are in place: copying a
+                # read-only directory's mode first would make it unwritable and
+                # silently cost us everything inside it.
+                directories.append((item, target))
             elif item.is_symlink():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 if target.exists() or target.is_symlink():
@@ -513,6 +520,11 @@ def copy_tree(source: Path, destination: Path, manifest: dict[str, str], skipped
                 skipped.append(f"{prefix}/{relative}: not a regular file")
         except OSError as exc:
             skipped.append(f"{prefix}/{relative}: {exc.strerror or exc}")
+    for item, target in reversed(directories):  # deepest first
+        try:
+            shutil.copystat(item, target, follow_symlinks=False)
+        except OSError as exc:
+            skipped.append(f"{prefix}/{item.relative_to(source)}: {exc.strerror or exc}")
 
 
 def extract_sessions(profile: Profile, home: Path, destination: Path) -> tuple[int, int]:
@@ -562,7 +574,7 @@ def profile_events(profile: Profile, home: Path, destination: Path) -> None:
             except json.JSONDecodeError:
                 report["invalid_json"] += 1
                 continue
-            kind = item.get("type", "<missing>") if isinstance(item, dict) else "<non-object>"
+            kind = item.get(profile.type_field, "<missing>") if isinstance(item, dict) else "<non-object>"
             report["record_types"][kind] = report["record_types"].get(kind, 0) + 1
             body = dig(item, profile.body_field) if profile.body_field and isinstance(item, dict) else None
             if isinstance(body, dict):
@@ -675,7 +687,7 @@ def audit(profile: Profile, home: Path) -> dict[str, Any]:
             if not isinstance(item, dict):
                 report["non_object_lines"] += 1
                 continue
-            kind = str(item.get("type", "<missing>"))
+            kind = str(item.get(profile.type_field, "<missing>"))
             report["record_types"][kind] = report["record_types"].get(kind, 0) + 1
             for rule in profile.message_rules:
                 if not matches(item, rule.get("match", {})):

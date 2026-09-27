@@ -69,3 +69,9 @@ files = ["agent_backup.py", "claude_backup.py", "claude_full_backup.py", "codex_
 [tool.coverage.run]
 source = ["agent_backup"]
 parallel = true
+# The CLI is tested through subprocesses; see tests/conftest.py.
+sigterm = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

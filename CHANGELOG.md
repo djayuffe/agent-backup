@@ -13,6 +13,12 @@
   that asserts the license metadata reaches the wheel, profile validation, and a
   release job that builds and publishes on a `v*` tag.
 - `--force` for `export`, which otherwise refuses to replace an existing archive.
+- `type_field` in a profile, for agents whose records name their kind with
+  something other than `type`.
+- Tests for the robustness the README promises: SQLite schema capture including a
+  corrupt database, symlinks preserved rather than followed, FIFOs and unreadable
+  directories reported instead of fatal, read-only directories keeping their
+  contents, and the record-shape profile recording shapes but never contents.
 - Project metadata: richer description, classifiers, URLs and a `dev` extra.
 - Dependabot for GitHub Actions updates.
 
@@ -26,6 +32,16 @@
 
 ### Fixed
 
+- **A read-only directory lost its contents in a backup.** `copy_tree` applied a
+  directory's permissions before copying what was inside it, so a mode like
+  `0o500` made the copy unwritable and everything under it was skipped. Directory
+  metadata is now applied after the contents, deepest first.
+- **The record-shape profile and `audit` miscounted any agent that does not call
+  its discriminator `type`.** Every record came out as `<missing>`. Profiles now
+  declare `type_field`, defaulting to `type`.
+- **Coverage was measured only in-process**, so the CLI tests that run through
+  `subprocess` did not count: the real figure was 91%, not 55%. `tests/conftest.py`
+  now instruments the children, and CI enforces a 90% floor.
 - **An export could silently replace an older archive.** An archive may hold the
   only remaining copy of sessions the agent has since deleted, so `export` now
   refuses to overwrite one, suggests a timestamped name, and takes `--force` when

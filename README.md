@@ -220,6 +220,7 @@ you can shadow a built-in.
   "home_default": "~/.example-agent",
   "session_globs": ["threads/*.jsonl"],
   "id_fields": ["thread_id"],
+  "type_field": "kind",
   "title_rules": [{ "match": { "kind": "meta" }, "field": "subject" }],
   "message_rules": [
     { "match": { "kind": "turn" }, "role": "speaker", "content": "body" }
@@ -257,6 +258,7 @@ exercised end to end by the test suite.
 | `title_rules` | list | Ordered `{"match": {...}, "field": "dotted.path"}`. The earliest matching rule wins, so put user-set titles first. |
 | `message_rules` | list | `{"match": {...}, "role": "dotted.path", "content": "dotted.path", "role_default": "dotted.path"}`. First matching rule is used. |
 | `skip_when` | list | Dotted paths whose truthiness excludes a record. |
+| `type_field` | string | Record key naming the record's kind, used by `audit` and the backup's record-shape profile. Default `type`. |
 | `blocks` | object | Content-block renderers, keyed by block type. See below. |
 | `mark_unknown_blocks` | bool | Render `[type]` for unknown block types instead of dropping them. Default `true`. |
 | `meta_fields` | list | `[label, dotted.path]` pairs. A non-empty label adds a header line; an empty label collects the value without rendering it. |
@@ -380,20 +382,26 @@ Useful entry points: `sessions`, `read_session`, `render`, `session_id`,
 ## Tests
 
 ```bash
-python3 -m pytest            # 39 tests, no dependencies beyond pytest
+python3 -m pytest            # 43 tests, no dependencies beyond pytest
 pip install -e ".[dev]"      # pytest, coverage, ruff, mypy, build, twine
 ruff check .                 # lint, as CI runs it
 mypy                         # type check, as CI runs it
-python3 -m pytest --cov      # coverage; CLI tests run in subprocesses, so the
-                             # in-process figure understates real coverage
+python3 -m pytest --cov      # coverage, 91%; the CLI subprocesses are
+                             # instrumented too, and CI enforces a 90% floor
 ```
 
 The suite covers the engine (dotted-path lookup, profile round-trip and
 validation, block renderers, damage tolerance, collision handling, audit on both
 clean and broken data), the CLI (auto-detection, unknown agent, audit exit codes,
-export and backup layouts, destination refusal) and both built-in profiles
-through their pinned front ends. A synthetic third-party format is driven end to
-end, so the no-code path is a tested path.
+export and backup layouts, destination refusal, archive-clobber refusal) and both
+built-in profiles through their pinned front ends. A synthetic third-party format
+is driven end to end, so the no-code path is a tested path.
+
+The guarantees above are tested, not just asserted in prose: SQLite schemas are
+captured from a real database and a corrupt one, symlinks are checked to survive
+as symlinks, FIFOs and unreadable directories are checked to be reported rather
+than fatal, a read-only directory is checked to keep its contents, and the
+record-shape profile is checked to contain shapes but no message text.
 
 ## Continuous integration
 
@@ -404,7 +412,7 @@ end, so the no-code path is a tested path.
 | --- | --- |
 | `lint` | `ruff check` passes with `E,F,I,UP,B,SIM,C4,RET` at a 120-column limit. |
 | `types` | `mypy` is clean across all five modules. |
-| `test` | The 39 tests pass with coverage on Python 3.10–3.13 (Linux) and 3.12 (macOS, Windows), and every CLI entry point starts. |
+| `test` | The 43 tests pass with coverage (floor: 90%) on Python 3.10–3.13 (Linux) and 3.12 (macOS, Windows), and every CLI entry point starts. |
 | `package` | `pip install .` works, all five console scripts are installed, `python -m build` plus `twine check --strict` accept the distributions, and the wheel is asserted to carry `License-Expression: GPL-3.0-or-later` and the license text. |
 | `profiles` | Every profile in `agent-profiles/` parses, and the example profile is driven end to end through `audit` — so the no-code path is covered outside the unit tests too. |
 | `release` | On a `v*` tag only, and only after every other job passes: checks that the tag, `pyproject.toml` and `VERSION` agree, builds the distributions and a standalone bundle with `SHA256SUMS`, and publishes the GitHub release with notes from the changelog. |

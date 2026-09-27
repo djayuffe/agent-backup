@@ -7,10 +7,23 @@
 # version. This program is distributed WITHOUT ANY WARRANTY; see the LICENSE
 # file, or <https://www.gnu.org/licenses/>, for the full terms.
 
-"""Make the repository root importable however pytest is invoked."""
+"""Shared test setup: import path, and coverage across subprocesses."""
+import os
 import sys
 from pathlib import Path
 
 ROOT = str(Path(__file__).resolve().parents[1])
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+
+
+def pytest_configure(config):
+    """Instrument the CLI subprocesses the tests spawn.
+
+    Much of the CLI is exercised by running the scripts through
+    ``subprocess``. Those children are only measured when coverage starts
+    itself inside them, which it does when ``COVERAGE_PROCESS_START`` names a
+    config file. Without this the reported figure is far below the truth.
+    """
+    if getattr(config.option, "cov_source", None):
+        os.environ["COVERAGE_PROCESS_START"] = str(Path(ROOT) / "pyproject.toml")
