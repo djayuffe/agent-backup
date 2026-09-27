@@ -64,6 +64,7 @@ def main() -> int:
     parser.add_argument("--no-raw", action="store_true", help="Do not include original session files")
     parser.add_argument("--no-attachments", action="store_true", help="Do not include Codex attachments")
     parser.add_argument("--prune", action="store_true", help="Delete mirrored chats whose session is gone from the source")
+    parser.add_argument("--force", action="store_true", help="Let export replace an archive that already exists")
     parser.add_argument("--version", action="version", version=f"codex-backup {VERSION}")
     args = parser.parse_args()
 
@@ -74,8 +75,11 @@ def main() -> int:
         return 0
     if args.command == "export":
         archive = args.zip or args.output.with_suffix(".zip")
-        found = agent_backup.export(PROFILE, args.source, args.output, archive,
-                                   not args.no_raw, not args.no_attachments, args.prune)
+        try:
+            found = agent_backup.export(PROFILE, args.source, args.output, archive,
+                                        not args.no_raw, not args.no_attachments, args.prune, args.force)
+        except FileExistsError as exc:
+            parser.error(str(exc).replace("pass force", "pass --force"))
         print(f"Exported {len(found)} chats to {archive}")
         return 0
     found, _ = agent_backup.mirror(PROFILE, args.source, args.output, args.prune)

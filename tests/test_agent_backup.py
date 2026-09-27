@@ -227,6 +227,29 @@ def test_cli_export_and_backup_for_a_custom_profile(tmp_path: Path):
     assert metadata["sha256"]["project/code.py"]
 
 
+def test_export_refuses_to_replace_an_existing_archive(tmp_path: Path):
+    home, output = tmp_path / "home", tmp_path / "out"
+    write_thread(home, "t1", [{"kind": "meta", "subject": "Keep", "thread_id": "T-1"},
+                              {"kind": "turn", "speaker": "human", "body": [{"type": "say", "text": "hi"}]}])
+    archive = tmp_path / "chats.zip"
+    run("export", "--agent", "example", "--source", str(home), "--output", str(output), "--zip", str(archive))
+    first = archive.read_bytes()
+
+    refused = subprocess.run([sys.executable, str(ROOT / "agent_backup.py"), "export", "--agent", "example",
+                              "--source", str(home), "--output", str(output), "--zip", str(archive)],
+                             capture_output=True, text=True, cwd=ROOT)
+    assert refused.returncode == 2
+    assert "already exists" in refused.stderr and "--force" in refused.stderr
+    assert archive.read_bytes() == first  # untouched
+
+    run("export", "--agent", "example", "--source", str(home), "--output", str(output),
+        "--zip", str(archive), "--force")
+    assert archive.exists()
+
+    with pytest.raises(FileExistsError):
+        agent_backup.export(Profile.from_dict(EXAMPLE), home, output, archive)
+
+
 def test_backup_refuses_output_inside_source(tmp_path: Path):
     home = tmp_path / "home"
     write_thread(home, "t1", [])

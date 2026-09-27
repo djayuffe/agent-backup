@@ -39,5 +39,9 @@ Each of these was found by auditing the tools against real state:
 - **Backups aborting on one bad path.** An unreadable directory, dangling symlink,
   socket or device node crashed the whole run; such entries are now skipped and
   listed in `backup-metadata.json`.
+- **An export could silently replace an older archive.** An archive may hold the
+  only remaining copy of sessions the agent has since deleted, so `export` now
+  refuses to overwrite one, suggests a timestamped name, and takes `--force` when
+  replacing is what you want.
 - **Colliding output names.** Two sources claiming one id now both survive,
   disambiguated by a path hash.

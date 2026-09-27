@@ -415,7 +415,12 @@ def mirror(profile: Profile, source: Path, output: Path, prune: bool = False) ->
 
 
 def export(profile: Profile, source: Path, output: Path, archive: Path,
-           raw: bool = True, attachments: bool = True, prune: bool = False) -> list[Path]:
+           raw: bool = True, attachments: bool = True, prune: bool = False,
+           force: bool = False) -> list[Path]:
+    # An export is an archive of state that may no longer exist anywhere else,
+    # so replacing one is never implicit.
+    if archive.exists() and not force:
+        raise FileExistsError(f"{archive} already exists; pass force to replace it, or choose another path")
     found, _ = mirror(profile, source, output, prune)
     metadata = {
         "format": f"{profile.name}-chat-export-v1",
@@ -729,6 +734,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-raw", action="store_true", help="Do not include original session files")
     parser.add_argument("--no-attachments", action="store_true", help="Do not include attachment directories")
     parser.add_argument("--prune", action="store_true", help="Delete mirrored chats whose session is gone")
+    parser.add_argument("--force", action="store_true", help="Let export replace an archive that already exists")
     parser.add_argument("--json", action="store_true", help="Machine-readable output where available")
     parser.add_argument("--version", action="version", version=f"agent-backup {VERSION}")
     return parser
@@ -800,7 +806,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "export":
         archive = args.zip or output.with_suffix(".zip")
-        found = export(profile, source, output, archive, not args.no_raw, not args.no_attachments, args.prune)
+        try:
+            found = export(profile, source, output, archive, not args.no_raw,
+                           not args.no_attachments, args.prune, args.force)
+        except FileExistsError:
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            suggestion = archive.with_name(f"{archive.stem}-{stamp}{archive.suffix}")
+            parser.error(f"{archive} already exists. An export can hold sessions that are gone "
+                         f"from disk, so it is never replaced silently. Write a new archive with "
+                         f"--zip {suggestion}, or pass --force to replace this one.")
         print(f"Exported {len(found)} chats to {archive}")
         return 0
 

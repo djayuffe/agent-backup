@@ -127,6 +127,7 @@ Default command is `sync`.
 | `--no-raw` | `export` | Omit the original session files. |
 | `--no-attachments` | `export` | Omit the profile's attachment directories. |
 | `--prune` | `sync`, `export` | Also delete mirrored chats whose session has disappeared from the source. |
+| `--force` | `export` | Replace an archive that already exists. Without it, `export` refuses and suggests a timestamped name. |
 | `--json` | `profiles`, `list`, `audit` | Machine-readable output. |
 | `--version` | all | Print the tool version. |
 
@@ -330,6 +331,9 @@ These are deliberate, and each one came from a bug found against real data:
 - **Backups are verifiable.** Every copied file's SHA-256 is recorded, symlinks
   are preserved as symlinks rather than followed, and a backup destination inside
   the project or the agent home is refused.
+- **An existing export is never replaced silently.** An archive can be the last
+  remaining copy of sessions the agent has since deleted, so `export` refuses to
+  overwrite one and suggests a timestamped name; `--force` is explicit.
 - **Nothing is written to the agent's own directory.** The tool only reads there.
 
 ## Pinned front ends
@@ -374,7 +378,7 @@ Useful entry points: `sessions`, `read_session`, `render`, `session_id`,
 ## Tests
 
 ```bash
-python3 -m pytest          # 38 tests, no dependencies beyond pytest
+python3 -m pytest          # 39 tests, no dependencies beyond pytest
 ```
 
 The suite covers the engine (dotted-path lookup, profile round-trip and
@@ -391,7 +395,7 @@ end, so the no-code path is a tested path.
 
 | Job | What it proves |
 | --- | --- |
-| `test` | The suite passes on Python 3.10, 3.11, 3.12 and 3.13 on Linux, and on 3.12 on macOS, and every CLI entry point starts. |
+| `test` | The 39 tests pass on Python 3.10, 3.11, 3.12 and 3.13 on Linux, and on 3.12 on macOS, and every CLI entry point starts. |
 | `package` | `pip install .` works, all five console scripts are installed, and `python -m build` plus `twine check` accept the distributions. |
 | `profiles` | Every profile in `agent-profiles/` parses, and the example profile is driven end to end through `audit` — so the no-code path is covered outside the unit tests too. |
 
