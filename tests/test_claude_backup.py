@@ -121,11 +121,13 @@ def run(home: Path, output: Path, *args: str) -> str:
 
 def test_sync_replaces_retitled_file_and_prunes(tmp_path: Path):
     home, output = tmp_path / "home", tmp_path / "out"
-    write_transcript(home, "proj", "abc", [{"type": "ai-title", "aiTitle": "First", "sessionId": "abc"}, message("user", "Hi")])
+    write_transcript(home, "proj", "abc", [{"type": "ai-title", "aiTitle": "First", "sessionId": "abc"},
+                                           message("user", "Hi")])
     run(home, output, "sync")
     assert (output / "First--abc.md").exists()
 
-    write_transcript(home, "proj", "abc", [{"type": "custom-title", "customTitle": "Second", "sessionId": "abc"}, message("user", "Hi")])
+    write_transcript(home, "proj", "abc", [{"type": "custom-title", "customTitle": "Second", "sessionId": "abc"},
+                                           message("user", "Hi")])
     run(home, output, "sync")
     assert (output / "Second--abc.md").exists()
     assert not (output / "First--abc.md").exists()
@@ -158,6 +160,7 @@ def test_export_bundles_chats_raw_and_extras(tmp_path: Path):
 
 def test_list_reports_titles_and_counts(tmp_path: Path):
     home = tmp_path / "home"
-    write_transcript(home, "proj", "abc", [{"type": "ai-title", "aiTitle": "Demo", "sessionId": "abc"}, message("user", "Hi")])
+    write_transcript(home, "proj", "abc", [{"type": "ai-title", "aiTitle": "Demo", "sessionId": "abc"},
+                                           message("user", "Hi")])
     stdout = run(home, tmp_path / "out", "list")
     assert "abc\tDemo\t1 messages" in stdout

@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.1.0rc2
+
+### Added
+
+- GNU General Public License v3.0 or later: full license text, a per-file notice
+  on every module, `License-Expression: GPL-3.0-or-later` in the built
+  distributions, and the license bundled in the wheel.
+- Ulf Bertilsson recorded as author, maintainer and copyright holder.
+- A complete CI pipeline: `ruff` lint, `mypy` type check, the suite with coverage
+  on Python 3.10-3.13 (Linux) plus 3.12 on macOS and Windows, a packaging job
+  that asserts the license metadata reaches the wheel, profile validation, and a
+  release job that builds and publishes on a `v*` tag.
+- `--force` for `export`, which otherwise refuses to replace an existing archive.
+- Project metadata: richer description, classifiers, URLs and a `dev` extra.
+- Dependabot for GitHub Actions updates.
+
+### Changed
+
+- `VERSION` now tracks the package version (`0.1.0rc2`) and is stamped into every
+  export and backup as `tool_version`; the release job refuses to publish unless
+  the tag, `pyproject.toml` and `VERSION` agree.
+- Internal tidy-up to satisfy the linter: one `write_json` helper replaced six
+  near-identical JSON writes, and shadowed loop variables were renamed.
+
+### Fixed
+
+- **An export could silently replace an older archive.** An archive may hold the
+  only remaining copy of sessions the agent has since deleted, so `export` now
+  refuses to overwrite one, suggests a timestamped name, and takes `--force` when
+  replacing is what you want.
+- A CLI test built a bare environment, which left Windows runners without
+  `SYSTEMROOT`.
+
 ## rc01 (0.1.0rc1)
 
 First release. A single generic engine (`agent_backup.py`) with profile-driven
@@ -39,9 +72,5 @@ Each of these was found by auditing the tools against real state:
 - **Backups aborting on one bad path.** An unreadable directory, dangling symlink,
   socket or device node crashed the whole run; such entries are now skipped and
   listed in `backup-metadata.json`.
-- **An export could silently replace an older archive.** An archive may hold the
-  only remaining copy of sessions the agent has since deleted, so `export` now
-  refuses to overwrite one, suggests a timestamped name, and takes `--force` when
-  replacing is what you want.
 - **Colliding output names.** Two sources claiming one id now both survive,
   disambiguated by a path hash.

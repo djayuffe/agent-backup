@@ -23,7 +23,8 @@ from pathlib import Path
 from typing import Any
 
 import agent_backup
-from agent_backup import CLAUDE as PROFILE, VERSION
+from agent_backup import CLAUDE as PROFILE
+from agent_backup import VERSION
 
 DEFAULT_OUTPUT = Path("claude-chats")
 
@@ -63,7 +64,8 @@ def main() -> int:
     parser.add_argument("--zip", type=Path, help="ZIP path for export (default: claude-chats.zip)")
     parser.add_argument("--no-raw", action="store_true", help="Do not include original session files")
     parser.add_argument("--no-attachments", action="store_true", help="Do not include Claude attachments")
-    parser.add_argument("--prune", action="store_true", help="Delete mirrored chats whose session is gone from the source")
+    parser.add_argument("--prune", action="store_true",
+                        help="Delete mirrored chats whose session is gone from the source")
     parser.add_argument("--force", action="store_true", help="Let export replace an archive that already exists")
     parser.add_argument("--version", action="version", version=f"claude-backup {VERSION}")
     args = parser.parse_args()
@@ -71,7 +73,8 @@ def main() -> int:
     if args.command == "list":
         for path in sessions(args.source):
             meta, messages = read_session(path)
-            print(f"{session_id(path, meta)}\t{meta.get('thread_name', 'untitled')}\t{len(messages)} messages\t{meta.get('timestamp', '')}")
+            print(f"{session_id(path, meta)}\t{meta.get('thread_name', 'untitled')}"
+                  f"\t{len(messages)} messages\t{meta.get('timestamp', '')}")
         return 0
     if args.command == "export":
         archive = args.zip or args.output.with_suffix(".zip")

@@ -6,10 +6,12 @@
 
 **Keep your own copy of what your coding agents said.**
 
-Coding agents write every session to disk as JSONL and never look back. `agent-backup`
-turns that state into readable Markdown, portable ZIP exports and 1:1 backups —
-for Claude Code and Codex out of the box, and for any other JSONL-based agent by
-writing a small JSON profile.
+Coding agents write every session to disk as JSONL, then quietly rotate, retitle
+and delete it. `agent-backup` turns that state into something you own: readable
+Markdown you can grep, portable ZIP archives you can move off the machine, and
+verifiable 1:1 snapshots with a SHA-256 for every file. Claude Code and Codex
+work out of the box; any other JSONL-based agent needs a small JSON profile and
+no code at all.
 
 - **One engine, many agents.** The record layout lives in a *profile*, not in code.
 - **No dependencies.** Standard library only, Python 3.10+.
@@ -378,7 +380,12 @@ Useful entry points: `sessions`, `read_session`, `render`, `session_id`,
 ## Tests
 
 ```bash
-python3 -m pytest          # 39 tests, no dependencies beyond pytest
+python3 -m pytest            # 39 tests, no dependencies beyond pytest
+pip install -e ".[dev]"      # pytest, coverage, ruff, mypy, build, twine
+ruff check .                 # lint, as CI runs it
+mypy                         # type check, as CI runs it
+python3 -m pytest --cov      # coverage; CLI tests run in subprocesses, so the
+                             # in-process figure understates real coverage
 ```
 
 The suite covers the engine (dotted-path lookup, profile round-trip and
@@ -395,9 +402,12 @@ end, so the no-code path is a tested path.
 
 | Job | What it proves |
 | --- | --- |
-| `test` | The 39 tests pass on Python 3.10, 3.11, 3.12 and 3.13 on Linux, and on 3.12 on macOS, and every CLI entry point starts. |
-| `package` | `pip install .` works, all five console scripts are installed, and `python -m build` plus `twine check` accept the distributions. |
+| `lint` | `ruff check` passes with `E,F,I,UP,B,SIM,C4,RET` at a 120-column limit. |
+| `types` | `mypy` is clean across all five modules. |
+| `test` | The 39 tests pass with coverage on Python 3.10–3.13 (Linux) and 3.12 (macOS, Windows), and every CLI entry point starts. |
+| `package` | `pip install .` works, all five console scripts are installed, `python -m build` plus `twine check --strict` accept the distributions, and the wheel is asserted to carry `License-Expression: GPL-3.0-or-later` and the license text. |
 | `profiles` | Every profile in `agent-profiles/` parses, and the example profile is driven end to end through `audit` — so the no-code path is covered outside the unit tests too. |
+| `release` | On a `v*` tag only, and only after every other job passes: checks that the tag, `pyproject.toml` and `VERSION` agree, builds the distributions and a standalone bundle with `SHA256SUMS`, and publishes the GitHub release with notes from the changelog. |
 
 ## Limitations
 
@@ -417,9 +427,12 @@ end, so the no-code path is a tested path.
 separately (`claude-chat-export-v1`, `codex-full-backup-v1`, …) so an archive
 always states how to read it.
 
-Current release: **rc01** (`0.1.0rc1`).
+Current release: **`0.1.0rc2`**. A release is cut by tagging `v<version>`; CI
+refuses to publish unless the tag, `pyproject.toml` and `VERSION` agree.
 
 ## License
+
+Copyright (C) 2026 Ulf Bertilsson.
 
 GNU General Public License v3.0 or later — see [LICENSE](LICENSE).
 

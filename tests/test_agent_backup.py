@@ -8,6 +8,7 @@
 # file, or <https://www.gnu.org/licenses/>, for the full terms.
 
 import json
+import os
 import subprocess
 import sys
 import zipfile
@@ -16,7 +17,20 @@ from pathlib import Path
 import pytest
 
 import agent_backup
-from agent_backup import CLAUDE, CODEX, Profile, audit, dig, matches, mirror, read_session, registry, render, session_id, sessions, text_content
+from agent_backup import (
+    CLAUDE,
+    CODEX,
+    Profile,
+    audit,
+    dig,
+    matches,
+    mirror,
+    read_session,
+    registry,
+    render,
+    session_id,
+    text_content,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -157,7 +171,7 @@ def test_mirror_keeps_colliding_ids_apart(tmp_path: Path):
     _, manifest = mirror(profile, home, output)
     assert len(manifest) == 2
     assert (output / "Same--T-1.md").exists()
-    assert len([p for p in output.glob("Same--T-1--*.md")]) == 1
+    assert len(list(output.glob("Same--T-1--*.md"))) == 1
 
 
 def run(*args: str) -> str:
@@ -176,8 +190,10 @@ def test_cli_auto_detects_a_single_agent(tmp_path: Path, monkeypatch):
     home = tmp_path / "home"
     write_thread(home, "t1", [{"kind": "meta", "subject": "Auto", "thread_id": "T-1"},
                               {"kind": "turn", "speaker": "human", "body": [{"type": "say", "text": "hi"}]}])
-    env = {"EXAMPLE_AGENT_HOME": str(home), "CLAUDE_CONFIG_DIR": str(tmp_path / "none"),
-           "CODEX_HOME": str(tmp_path / "none"), "PATH": "/usr/bin:/bin"}
+    # Copy the real environment: a bare dict leaves Windows runners without
+    # SYSTEMROOT, and the interpreter then fails to start at all.
+    env = {**os.environ, "EXAMPLE_AGENT_HOME": str(home),
+           "CLAUDE_CONFIG_DIR": str(tmp_path / "none"), "CODEX_HOME": str(tmp_path / "none")}
     result = subprocess.run([sys.executable, str(ROOT / "agent_backup.py"), "list", "--json"],
                             capture_output=True, text=True, cwd=ROOT, env=env, check=True)
     assert json.loads(result.stdout)[0]["title"] == "Auto"

@@ -22,7 +22,8 @@ import argparse
 from pathlib import Path
 
 import agent_backup
-from agent_backup import CLAUDE as PROFILE, VERSION, copy_tree, walk
+from agent_backup import CLAUDE as PROFILE
+from agent_backup import VERSION
 
 collect_sqlite_schemas = agent_backup.collect_sqlite_schemas
 

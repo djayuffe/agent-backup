@@ -34,12 +34,13 @@ import re
 import shutil
 import sqlite3
 import zipfile
+from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Iterator
+from typing import Any
 
-VERSION = "rc01"
+VERSION = "0.1.0rc2"
 
 #: A trailing UUID is how most agents name a session file.
 UUID_SUFFIX = r"([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})$"
@@ -102,8 +103,8 @@ class Profile:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Profile":
-        known = {f for f in cls.__dataclass_fields__}
+    def from_dict(cls, data: dict[str, Any]) -> Profile:
+        known = set(cls.__dataclass_fields__)
         unknown = set(data) - known
         if unknown:
             raise ValueError(f"unknown profile keys: {', '.join(sorted(unknown))}")
@@ -219,6 +220,10 @@ def registry(extra_files: Iterable[Path] = ()) -> dict[str, Profile]:
 # Reading sessions
 # --------------------------------------------------------------------------- #
 
+def write_json(path: Path, data: Any, sort_keys: bool = True) -> None:
+    path.write_text(json.dumps(data, indent=2, sort_keys=sort_keys) + "\n", encoding="utf-8")
+
+
 def dig(record: Any, path: str) -> Any:
     value = record
     for part in path.split("."):
@@ -258,7 +263,8 @@ def session_id(profile: Profile, path: Path, meta: dict[str, Any]) -> str:
         match = re.search(profile.id_pattern, path.stem)
         if match:
             return match.group(1)
-    for value in (meta.get("id"), *(meta.get(f.split(".")[-1]) for f in profile.id_fields)):
+    recorded = (meta.get(field.split(".")[-1]) for field in profile.id_fields)
+    for value in (meta.get("id"), *recorded):
         if value:
             return str(value)
     return path.stem
@@ -410,7 +416,7 @@ def mirror(profile: Profile, source: Path, output: Path, prune: bool = False) ->
         # sessions no longer in the source are only removed with --prune.
         if prune or "--" + stale.name.split("--")[-1] in live:
             stale.unlink()
-    (output / ".manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json(output / ".manifest.json", manifest)
     return found, manifest
 
 
@@ -433,7 +439,7 @@ def export(profile: Profile, source: Path, output: Path, archive: Path,
         "raw_sessions": raw,
         "attachments": attachments,
     }
-    (output / "export-metadata.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    write_json(output / "export-metadata.json", metadata, sort_keys=False)
     archive.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
         for file in output.rglob("*"):
@@ -444,21 +450,21 @@ def export(profile: Profile, source: Path, output: Path, archive: Path,
                 # Preserve enough source structure to avoid collisions between
                 # session files that share a name in different directories.
                 try:
-                    name = file.relative_to(source)
+                    relative = file.relative_to(source)
                 except ValueError:
-                    name = Path(file.name)
-                zf.write(file, Path("raw") / name)
+                    relative = Path(file.name)
+                zf.write(file, Path("raw") / relative)
         for extra in profile.extras:
             path = source / extra
             if path.is_file():
                 zf.write(path, Path(profile.extras_dir or profile.name) / path.name)
         if attachments:
-            for name in profile.attachment_dirs:
-                directory = source / name
+            for attachment_dir in profile.attachment_dirs:
+                directory = source / attachment_dir
                 if directory.is_dir():
                     for file in directory.rglob("*"):
                         if file.is_file():
-                            zf.write(file, Path(name) / file.relative_to(directory))
+                            zf.write(file, Path(attachment_dir) / file.relative_to(directory))
     return found
 
 
@@ -536,7 +542,7 @@ def extract_sessions(profile: Profile, home: Path, destination: Path) -> tuple[i
                 "modified": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
                 "symlink": item.is_symlink(),
             })
-    (destination / profile.inventory_name()).write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
+    write_json(destination / profile.inventory_name(), inventory, sort_keys=False)
     return count, len(inventory)
 
 
@@ -563,7 +569,7 @@ def profile_events(profile: Profile, home: Path, destination: Path) -> None:
                 keys = report["body_keys"].setdefault(kind, {})
                 for key in body:
                     keys[key] = keys.get(key, 0) + 1
-    (destination / profile.event_profile_name).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json(destination / profile.event_profile_name, report)
 
 
 def collect_sqlite_schemas(home: Path, destination: Path) -> None:
@@ -574,15 +580,17 @@ def collect_sqlite_schemas(home: Path, destination: Path) -> None:
         try:
             with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as connection:
                 tables = {}
-                for (name,) in connection.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"):
-                    columns = [dict(zip(("cid", "name", "type", "notnull", "default", "pk"), row))
+                listing = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+                fields = ("cid", "name", "type", "notnull", "default", "pk")
+                for (name,) in connection.execute(listing):
+                    columns = [dict(zip(fields, row, strict=False))
                                for row in connection.execute(f'PRAGMA table_info("{name}")')]
-                    tables[name] = {"columns": columns,
-                                    "sql": connection.execute("SELECT sql FROM sqlite_master WHERE name = ?", (name,)).fetchone()[0]}
+                    sql = connection.execute("SELECT sql FROM sqlite_master WHERE name = ?", (name,)).fetchone()[0]
+                    tables[name] = {"columns": columns, "sql": sql}
                 schemas[str(db.relative_to(home))] = {"tables": tables}
         except sqlite3.Error as exc:
             schemas[str(db.relative_to(home))] = {"error": str(exc)}
-    (destination / "sqlite-schema.json").write_text(json.dumps(schemas, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json(destination / "sqlite-schema.json", schemas)
 
 
 def backup(profile: Profile, project: Path, home: Path, output: Path) -> dict[str, Any]:
@@ -619,7 +627,7 @@ def backup(profile: Profile, project: Path, home: Path, output: Path) -> dict[st
         "skipped": skipped,
         "sha256": manifest,
     }
-    (destination / "backup-metadata.json").write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json(destination / "backup-metadata.json", metadata)
     metadata["path"] = str(destination)
     return metadata
 
@@ -718,6 +726,7 @@ def resolve_profile(parser: argparse.ArgumentParser, name: str, files: Iterable[
     if not candidates:
         parser.error(f"no agent state found; name one with --agent (known: {', '.join(sorted(known))})")
     parser.error("several agents found: " + ", ".join(p.name for p in candidates) + "; pick one with --agent")
+    raise SystemExit(2)  # unreachable: parser.error exits
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -767,7 +776,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"agent: {profile.name}   source: {report['source']}")
             print(f"files: {report['files']}   records: {report['lines']}   invalid json: {report['invalid_json']}")
             print(f"messages: {report['message_records']}   rendered: {report['rendered_messages']}")
-            print("unhandled block types: " + (json.dumps(report["unhandled_blocks"]) if report["unhandled_blocks"] else "none"))
+            unhandled = json.dumps(report["unhandled_blocks"]) if report["unhandled_blocks"] else "none"
+            print("unhandled block types: " + unhandled)
             print("duplicate ids: " + (", ".join(report["duplicate_ids"]) or "none"))
             print("name collisions: " + (", ".join(report["name_collisions"]) or "none"))
             if report["id_from_records_differs"]:

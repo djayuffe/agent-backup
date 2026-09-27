@@ -27,16 +27,18 @@ def write_rollout(home: Path, day: str, stamp: str, sid: str, rows: list[dict]) 
 
 
 def message(role: str, text: str, kind: str = "input_text") -> dict:
-    return {"type": "response_item", "timestamp": "2026-01-01T00:00:00Z",
-            "payload": {"type": "message", "role": role, "content": [{"type": kind, "text": text}]}}
+    payload = {"type": "message", "role": role, "content": [{"type": kind, "text": text}]}
+    return {"type": "response_item", "timestamp": "2026-01-01T00:00:00Z", "payload": payload}
 
 
 def test_reads_message_content(tmp_path: Path):
     source = tmp_path / "rollout.jsonl"
     rows = [
         {"type": "session_meta", "payload": {"id": "abc", "thread_name": "Demo"}},
-        {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Hello"}]}},
-        {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Hi"}]}},
+        {"type": "response_item",
+         "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Hello"}]}},
+        {"type": "response_item",
+         "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Hi"}]}},
     ]
     source.write_text("\n".join(json.dumps(row) for row in rows))
     meta, messages = read_session(source)
@@ -59,7 +61,8 @@ def test_handles_object_text_and_malformed_payload(tmp_path: Path):
 
 
 def test_image_blocks_are_marked():
-    assert text_content([{"type": "input_text", "text": "look"}, {"type": "input_image", "image_url": "..."}]) == "look\n[image]"
+    blocks = [{"type": "input_text", "text": "look"}, {"type": "input_image", "image_url": "..."}]
+    assert text_content(blocks) == "look\n[image]"
 
 
 def test_session_id_prefers_file_name_over_resumed_meta(tmp_path: Path):
@@ -117,7 +120,8 @@ def test_sync_replaces_retitled_file_and_prunes(tmp_path: Path):
     home, output = tmp_path / "home", tmp_path / "out"
     sid = "019d69a2-7624-7232-b7c8-49c8a57249c0"
     rollout = write_rollout(home, "2026/04/07", "2026-04-07T22-29-08", sid,
-                            [{"type": "session_meta", "payload": {"id": sid, "thread_name": "First"}}, message("user", "hi")])
+                            [{"type": "session_meta", "payload": {"id": sid, "thread_name": "First"}},
+                             message("user", "hi")])
     run(home, output, "sync")
     assert (output / f"First--{sid}.md").exists()
 

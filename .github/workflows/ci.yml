@@ -10,9 +10,43 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+
 jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip ruff
+      - name: ruff check
+        run: ruff check --output-format github .
+
+  typecheck:
+    name: types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip mypy
+      - name: mypy
+        run: mypy
+
   test:
-    name: tests (python ${{ matrix.python-version }} on ${{ matrix.os }})
+    name: tests (${{ matrix.python-version }} on ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -22,16 +56,18 @@ jobs:
         include:
           - os: macos-latest
             python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.12"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install pytest
-        run: python -m pip install --upgrade pip pytest
-      - name: Run tests
-        run: python -m pytest -q
-      - name: Smoke-test the CLI
+          cache: pip
+      - run: python -m pip install --upgrade pip pytest pytest-cov
+      - name: Run tests with coverage
+        run: python -m pytest --cov --cov-report=term-missing --cov-report=xml
+      - name: Smoke-test every entry point
         shell: bash
         run: |
           python agent_backup.py --version
@@ -39,6 +75,13 @@ jobs:
           for script in claude_backup claude_full_backup codex_backup codex_full_backup; do
             python "$script.py" --version
           done
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: error
 
   package:
     name: packaging
@@ -48,7 +91,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install the package
+          cache: pip
+      - name: Install from the source tree
         run: |
           python -m pip install --upgrade pip
           python -m pip install .
@@ -59,14 +103,31 @@ jobs:
           claude-full-backup --version
           codex-backup --version
           codex-full-backup --version
-      - name: Build the distributions
+      - name: Build and check the distributions
         run: |
           python -m pip install build twine
           python -m build
-          python -m twine check dist/*
+          python -m twine check --strict dist/*
+      - name: Verify the license reaches the metadata
+        run: |
+          python - <<'PY'
+          import glob, zipfile, sys
+          wheel = glob.glob("dist/*.whl")[0]
+          with zipfile.ZipFile(wheel) as z:
+              metadata = z.read(next(n for n in z.namelist() if n.endswith("METADATA"))).decode()
+              bundled = [n for n in z.namelist() if n.endswith("LICENSE")]
+          print(metadata.splitlines()[:12], bundled)
+          assert "License-Expression: GPL-3.0-or-later" in metadata, "SPDX expression missing"
+          assert bundled, "LICENSE not bundled in the wheel"
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/*
+          if-no-files-found: error
 
   profiles:
-    name: bundled profiles are valid
+    name: bundled profiles
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,3 +157,62 @@ jobs:
           print(json.dumps(report, indent=2, sort_keys=True))
           sys.exit(0 if report["ok"] and report["rendered_messages"] == 1 else 1)
           PY
+
+  release:
+    name: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [lint, typecheck, test, package, profiles]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the tag matches the project version
+        run: |
+          python - <<'PY'
+          import os, pathlib, re, sys, tomllib
+          tag = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
+          stamped = re.search(r'VERSION = "([^"]+)"', pathlib.Path("agent_backup.py").read_text()).group(1)
+          print(f"tag={tag} pyproject={version} agent_backup.VERSION={stamped}")
+          sys.exit(0 if tag == version == stamped else "tag, pyproject and VERSION disagree")
+          PY
+      - name: Build the distributions
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check --strict dist/*
+      - name: Assemble the standalone bundle
+        run: |
+          python - <<'PY'
+          import hashlib, pathlib, zipfile
+          files = ["agent_backup.py", "claude_backup.py", "claude_full_backup.py", "codex_backup.py",
+                   "codex_full_backup.py", "agent-profiles/example-agent.json", "README.md",
+                   "CHANGELOG.md", "LICENSE", "pyproject.toml",
+                   "tests/conftest.py", "tests/test_agent_backup.py",
+                   "tests/test_claude_backup.py", "tests/test_codex_backup.py"]
+          digests = {f: hashlib.sha256(pathlib.Path(f).read_bytes()).hexdigest() for f in files}
+          pathlib.Path("dist/SHA256SUMS").write_text("".join(f"{d}  {f}\n" for f, d in digests.items()))
+          with zipfile.ZipFile("dist/agent-backup-standalone.zip", "w", zipfile.ZIP_DEFLATED) as zf:
+              for f in files:
+                  zf.write(f, f"agent-backup/{f}")
+          print("\n".join(f"{d[:12]}… {f}" for f, d in digests.items()))
+          PY
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes=$(python - <<'PY'
+          import pathlib, re
+          text = pathlib.Path("CHANGELOG.md").read_text()
+          sections = re.split(r"^## ", text, flags=re.M)[1:]
+          print("## " + sections[0].strip() if sections else "See CHANGELOG.md")
+          PY
+          )
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "agent-backup $GITHUB_REF_NAME" \
+            --notes "$notes" \
+            $([ "${GITHUB_REF_NAME#*rc}" != "$GITHUB_REF_NAME" ] && echo --prerelease)
