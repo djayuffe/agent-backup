@@ -17,6 +17,12 @@ venv/
 build/
 dist/
 
+# Coverage data — a .coverage database slipped into 2e6c6cd this way
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
 # Tooling
 .pytest_cache/
 .mypy_cache/
