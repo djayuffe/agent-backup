@@ -16,6 +16,10 @@ Codex, and four pinned front ends that keep the original per-agent CLIs.
 - `audit`: verifies a profile against real files and exits non-zero on a problem.
 - `--prune` for deleting mirrored chats whose session left the source.
 - 38 tests, including a synthetic third-party format driven end to end.
+- GitHub Actions CI: the suite on Python 3.10-3.13 (Linux) and 3.12 (macOS), a
+  packaging job that installs the project and checks the built distributions, and
+  a job that validates every bundled profile.
+- Licensed under the GNU General Public License v3.0 or later.
 
 ### Fixed
 

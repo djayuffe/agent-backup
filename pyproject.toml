@@ -5,6 +5,8 @@ description = "Mirror and back up local coding-agent session state"
 requires-python = ">=3.10"
 dependencies = []
 readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 keywords = ["backup", "mirror", "transcript", "claude-code", "codex", "jsonl"]
 
 [project.scripts]
@@ -15,7 +17,7 @@ codex-backup = "codex_backup:main"
 codex-full-backup = "codex_full_backup:main"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]

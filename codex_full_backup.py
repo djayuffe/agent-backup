@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+# agent-backup — mirror and back up local coding-agent session state.
+# Copyright (C) 2026 Ulf Bertilsson
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version. This program is distributed WITHOUT ANY WARRANTY; see the LICENSE
+# file, or <https://www.gnu.org/licenses/>, for the full terms.
+
 """Create a local 1:1 backup of a project and its Codex state.
 
 A thin front end for the generic engine in agent_backup.py, pinned to the

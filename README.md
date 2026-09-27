@@ -1,5 +1,9 @@
 # agent-backup
 
+[![CI](https://github.com/djayuffe/agent-backup/actions/workflows/ci.yml/badge.svg)](https://github.com/djayuffe/agent-backup/actions/workflows/ci.yml)
+[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+
 **Keep your own copy of what your coding agents said.**
 
 Coding agents write every session to disk as JSONL and never look back. `agent-backup`
@@ -48,8 +52,10 @@ verdict: ok
 - [Pinned front ends](#pinned-front-ends)
 - [Library use](#library-use)
 - [Tests](#tests)
+- [Continuous integration](#continuous-integration)
 - [Limitations](#limitations)
 - [Versioning](#versioning)
+- [License](#license)
 
 ---
 
@@ -378,6 +384,17 @@ export and backup layouts, destination refusal) and both built-in profiles
 through their pinned front ends. A synthetic third-party format is driven end to
 end, so the no-code path is a tested path.
 
+## Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to
+`main`, every pull request, every `v*` tag and on demand:
+
+| Job | What it proves |
+| --- | --- |
+| `test` | The suite passes on Python 3.10, 3.11, 3.12 and 3.13 on Linux, and on 3.12 on macOS, and every CLI entry point starts. |
+| `package` | `pip install .` works, all five console scripts are installed, and `python -m build` plus `twine check` accept the distributions. |
+| `profiles` | Every profile in `agent-profiles/` parses, and the example profile is driven end to end through `audit` — so the no-code path is covered outside the unit tests too. |
+
 ## Limitations
 
 - Only JSONL session formats are supported. An agent storing sessions in SQLite
@@ -397,3 +414,13 @@ separately (`claude-chat-export-v1`, `codex-full-backup-v1`, …) so an archive
 always states how to read it.
 
 Current release: **rc01** (`0.1.0rc1`).
+
+## License
+
+GNU General Public License v3.0 or later — see [LICENSE](LICENSE).
+
+This program is free software: you may redistribute and modify it under the
+terms of the GPL as published by the Free Software Foundation, either version 3
+or (at your option) any later version. It is distributed in the hope that it will
+be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
