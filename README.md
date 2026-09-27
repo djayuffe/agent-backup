@@ -55,6 +55,7 @@ verdict: ok
 - [Library use](#library-use)
 - [Tests](#tests)
 - [Continuous integration](#continuous-integration)
+- [Contributing](#contributing)
 - [Limitations](#limitations)
 - [Versioning](#versioning)
 - [License](#license)
@@ -439,6 +440,12 @@ Current release: **`0.1.0`**. A release is cut by tagging `v<version>`; CI
 refuses to publish unless the tag, `pyproject.toml` and `VERSION` agree, and
 marks the release a pre-release only when the tag says `rc`, `alpha`, `beta` or
 `dev`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and what a good
+change looks like, and [SECURITY.md](SECURITY.md) for how to report a
+vulnerability privately.
 
 ## License
 
