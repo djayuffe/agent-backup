@@ -41,7 +41,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-VERSION = "0.1.0rc3"
+VERSION = "0.1.0"
 
 #: A trailing UUID is how most agents name a session file.
 UUID_SUFFIX = r"([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})$"

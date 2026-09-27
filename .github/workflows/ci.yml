@@ -221,7 +221,13 @@ jobs:
           print("## " + sections[0].strip() if sections else "See CHANGELOG.md")
           PY
           )
+          # A pre-release only when the tag says so; this path had never run.
+          prerelease=""
+          case "$GITHUB_REF_NAME" in
+            *rc*|*alpha*|*beta*|*dev*) prerelease="--prerelease" ;;
+          esac
+          echo "publishing $GITHUB_REF_NAME ${prerelease:-as a full release}"
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "agent-backup $GITHUB_REF_NAME" \
             --notes "$notes" \
-            $([ "${GITHUB_REF_NAME#*rc}" != "$GITHUB_REF_NAME" ] && echo --prerelease)
+            $prerelease

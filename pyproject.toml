@@ -1,6 +1,6 @@
 [project]
 name = "agent-backup"
-version = "0.1.0rc3"
+version = "0.1.0"
 description = "Back up coding-agent sessions — Claude Code, Codex, or any JSONL agent — to Markdown, ZIP archives and verifiable 1:1 snapshots"
 requires-python = ">=3.10"
 dependencies = []

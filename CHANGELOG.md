@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.1.0
+
+First stable release. The code is what `0.1.0rc3` shipped, with the release
+plumbing for a non-pre-release tag made explicit; the release-candidate sections
+below record how it got here and what each fixed.
+
+What it does:
+
+- Mirrors any JSONL-based coding agent's sessions to readable Markdown, exports
+  them as portable ZIP archives, and takes verifiable 1:1 snapshots of a project
+  and an agent home with a SHA-256 for every file copied.
+- Ships profiles for **Claude Code** and **Codex**, validated against 21 Claude
+  sessions (85,942 records) and 190 Codex rollouts (261,659 records) with no
+  unhandled record shapes.
+- Supports any other agent through a JSON profile and no code, and `audit` tells
+  you when a profile stops matching what the agent writes.
+- Refuses to lose data: it never overwrites an existing archive, never deletes a
+  vanished session's chat unless asked, preserves symlinks as symlinks, keeps a
+  read-only directory's contents, and reports what it could not read instead of
+  failing the run.
+
+Verified on every release: `ruff`, `mypy`, 43 tests at 91% coverage on Python
+3.10–3.13 across Linux, macOS and Windows, a packaging check that the wheel
+really carries `GPL-3.0-or-later`, and a profile check that drives a synthetic
+third-party format end to end.
+
 ## 0.1.0rc3
 
 Everything here was found by testing claims the README already made, or by
