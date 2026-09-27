@@ -378,3 +378,8 @@ def test_builtin_profiles_cover_their_own_documented_blocks():
     for profile in (CLAUDE, CODEX):
         assert profile.session_globs and profile.message_rules and profile.blocks
         assert profile.home_env and profile.home_default
+
+
+def test_deliberate_failure_to_prove_ci_goes_red():
+    """Temporary: asserts a falsehood so CI must fail on every runner."""
+    assert agent_backup.VERSION == "this-is-not-the-version"
