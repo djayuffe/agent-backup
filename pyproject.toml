@@ -1,6 +1,6 @@
 [project]
 name = "agent-backup"
-version = "0.1.0rc2"
+version = "0.1.0rc3"
 description = "Back up coding-agent sessions — Claude Code, Codex, or any JSONL agent — to Markdown, ZIP archives and verifiable 1:1 snapshots"
 requires-python = ">=3.10"
 dependencies = []
@@ -53,6 +53,9 @@ py-modules = ["agent_backup", "claude_backup", "claude_full_backup", "codex_back
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# A warning is a defect until proven otherwise: an unclosed SQLite handle in the
+# schema collector only showed up this way.
+filterwarnings = ["error"]
 
 [tool.ruff]
 line-length = 120

@@ -35,12 +35,13 @@ import shutil
 import sqlite3
 import zipfile
 from collections.abc import Iterable, Iterator
+from contextlib import closing
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-VERSION = "0.1.0rc2"
+VERSION = "0.1.0rc3"
 
 #: A trailing UUID is how most agents name a session file.
 UUID_SUFFIX = r"([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})$"
@@ -590,7 +591,9 @@ def collect_sqlite_schemas(home: Path, destination: Path) -> None:
         if not db.is_file():
             continue
         try:
-            with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as connection:
+            # closing(), not the connection's own context manager: that one
+            # commits the transaction but leaves the handle open.
+            with closing(sqlite3.connect(f"file:{db}?mode=ro", uri=True)) as connection:
                 tables = {}
                 listing = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
                 fields = ("cid", "name", "type", "notnull", "default", "pk")

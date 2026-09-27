@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.1.0rc3
+
+Everything here was found by testing claims the README already made, or by
+distrusting a green pipeline. Anyone on `0.1.0rc2` should move to this release:
+it fixes a backup that could silently drop files.
+
+### Fixed
+
+- **A read-only directory lost its contents in a backup.** `copy_tree` applied a
+  directory's permissions before copying what was inside it, so a source
+  directory with a mode like `0o500` became unwritable and everything under it
+  was skipped — recorded in `skipped`, but missing from the backup. Directory
+  metadata is now applied after the contents, deepest first.
+- **Every scanned SQLite database leaked its handle.** `with sqlite3.connect(...)`
+  commits the transaction but does not close the connection; `collect_sqlite_schemas`
+  now wraps it in `contextlib.closing`.
+- **`audit` and the backup's record-shape profile miscounted any agent that does
+  not name its discriminator `type`.** Every record was counted as `<missing>` —
+  the generic engine failing precisely for the third-party agents it exists to
+  serve. Profiles now declare `type_field`, defaulting to `type`.
+- **CI could not fail on Windows.** The runner's default `pwsh` shell did not
+  propagate a failing command's exit code: the coverage gate printed `FAIL` at
+  89.95% and the step still reported success, so a red test run there would have
+  kept the pipeline green. Every job now runs under `bash`, verified by pushing a
+  deliberately failing test and confirming all six runners went red.
+- **Coverage was measured only in the parent process**, so the CLI tests that run
+  through `subprocess` did not count: the real figure was 91%, not 55%.
+
+### Added
+
+- `type_field` in a profile, for agents whose records name their kind with
+  something other than `type`.
+- Tests for the robustness the README promises: SQLite schema capture from a real
+  database and a corrupt one, symlinks preserved rather than followed, FIFOs and
+  unreadable directories reported instead of fatal, read-only directories keeping
+  their contents, and the record-shape profile recording shapes but never message
+  text.
+- Warnings are errors in the test suite, which is how the SQLite handle leak
+  surfaced.
+
+### Changed
+
+- The coverage floor (90%) is enforced where the whole suite runs; the POSIX-only
+  tests skip on Windows and would otherwise drag the figure under it.
+- GitHub Actions pinned to `checkout@v7`, `setup-python@v7`, `upload-artifact@v7`.
+
 ## 0.1.0rc2
 
 ### Added
@@ -13,12 +59,6 @@
   that asserts the license metadata reaches the wheel, profile validation, and a
   release job that builds and publishes on a `v*` tag.
 - `--force` for `export`, which otherwise refuses to replace an existing archive.
-- `type_field` in a profile, for agents whose records name their kind with
-  something other than `type`.
-- Tests for the robustness the README promises: SQLite schema capture including a
-  corrupt database, symlinks preserved rather than followed, FIFOs and unreadable
-  directories reported instead of fatal, read-only directories keeping their
-  contents, and the record-shape profile recording shapes but never contents.
 - Project metadata: richer description, classifiers, URLs and a `dev` extra.
 - Dependabot for GitHub Actions updates.
 
@@ -32,16 +72,6 @@
 
 ### Fixed
 
-- **A read-only directory lost its contents in a backup.** `copy_tree` applied a
-  directory's permissions before copying what was inside it, so a mode like
-  `0o500` made the copy unwritable and everything under it was skipped. Directory
-  metadata is now applied after the contents, deepest first.
-- **The record-shape profile and `audit` miscounted any agent that does not call
-  its discriminator `type`.** Every record came out as `<missing>`. Profiles now
-  declare `type_field`, defaulting to `type`.
-- **Coverage was measured only in-process**, so the CLI tests that run through
-  `subprocess` did not count: the real figure was 91%, not 55%. `tests/conftest.py`
-  now instruments the children, and CI enforces a 90% floor.
 - **An export could silently replace an older archive.** An archive may hold the
   only remaining copy of sessions the agent has since deleted, so `export` now
   refuses to overwrite one, suggests a timestamped name, and takes `--force` when

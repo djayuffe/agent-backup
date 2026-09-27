@@ -435,7 +435,7 @@ record-shape profile is checked to contain shapes but no message text.
 separately (`claude-chat-export-v1`, `codex-full-backup-v1`, …) so an archive
 always states how to read it.
 
-Current release: **`0.1.0rc2`**. A release is cut by tagging `v<version>`; CI
+Current release: **`0.1.0rc3`**. A release is cut by tagging `v<version>`; CI
 refuses to publish unless the tag, `pyproject.toml` and `VERSION` agree.
 
 ## License
